@@ -1,6 +1,8 @@
 using HMS.Application.Interfaces;
 using HMS.Core.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using HMS.Application.DTO.Auth;
 
 namespace HMS.Api.Controllers
 {
@@ -9,18 +11,14 @@ namespace HMS.Api.Controllers
     public class HotelsController : ControllerBase
     {
         private readonly IHotelService _hotelService;
-        private readonly IRoomService _roomService;
-        public HotelsController(IHotelService hotelService, IRoomService roomService)
+
+        public HotelsController(IHotelService hotelService)
         {
             _hotelService = hotelService;
-            _roomService = roomService;
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetHotels(
-            [FromQuery] string? country,
-            [FromQuery] string? city,
-            [FromQuery] int? rating)
+        public async Task<IActionResult> GetHotels([FromQuery] string? country, [FromQuery] string? city, [FromQuery] int? rating)
         {
             var hotels = await _hotelService.GetFilteredHotelsAsync(country, city, rating);
             return Ok(hotels);
@@ -34,42 +32,40 @@ namespace HMS.Api.Controllers
             return Ok(hotel);
         }
 
-        [HttpGet("{hotelId}/rooms")]
-        public async Task<IActionResult> GetRooms(Guid hotelId, [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice)
-        {
-            var rooms = await _roomService.GetRoomsByHotelIdAsync(hotelId, minPrice, maxPrice);
-            return Ok(rooms);
-        }
-
-        [HttpPost("{hotelId}/rooms")]
-        public async Task<IActionResult> AddRoom(Guid hotelId, Room room)
-        {
-            try
-            {
-                await _roomService.AddRoomToHotelAsync(hotelId, room);
-                return Ok(room);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ex.Message);
-            }
-        }
-
         [HttpPost]
-        public async Task<IActionResult> Create(Hotel hotel)
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Create([FromBody] Hotel hotel)
         {
             await _hotelService.CreateHotelAsync(hotel);
             return CreatedAtAction(nameof(GetById), new { id = hotel.Id }, hotel);
         }
 
+        [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Update(Guid id, [FromBody] HotelUpdateDto dto)
+        {
+            try
+            {
+                var hotelToUpdate = new Hotel
+                {
+                    Name = dto.Name,
+                    Address = dto.Address,
+                    Rating = dto.Rating,
+                    City = dto.City,
+                    Country = dto.Country
+                };
+                await _hotelService.UpdateHotelAsync(id, hotelToUpdate);
+                return NoContent();
+            }
+            catch (ArgumentException ex) { return BadRequest(new { Message = ex.Message }); }
+        }
+
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(Guid id)
         {
             var success = await _hotelService.DeleteHotelAsync(id);
-            if (!success)
-            {
-                return BadRequest("Cannot delete hotel: It may have active rooms or reservations.");
-            }
+            if (!success) return BadRequest(new { Message = "Cannot delete hotel: Active rooms or reservations exist" });
             return NoContent();
         }
     }

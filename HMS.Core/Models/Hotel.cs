@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema; 
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace HMS.Core.Models
 {
@@ -16,7 +16,7 @@ namespace HMS.Core.Models
         public string Name { get; set; }
 
         [Required]
-        [Range(1, 5)]
+        [Range(1, 5)]   
         public byte Rating { get; set; }
 
         [Required]
@@ -31,10 +31,8 @@ namespace HMS.Core.Models
         [MaxLength(50)]
         public string Address { get; set; }
 
-        [ForeignKey(nameof(Manager))]
-        public string ManagerId { get; set; }
-        public ApplicationUser Manager { get; set; }
+        public ICollection<ApplicationUser> Managers { get; set; } = new List<ApplicationUser>();
 
-        public ICollection<Room> Rooms { get; set; }
+        public ICollection<Room> Rooms { get; set; } = new List<Room>();
     }
 }

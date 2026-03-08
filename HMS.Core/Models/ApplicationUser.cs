@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using HMS.Core.Models;
-using Microsoft.AspNetCore.Identity; 
+using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
 
 namespace HMS.Core.Models
@@ -19,11 +14,12 @@ namespace HMS.Core.Models
         public string LastName { get; set; }
 
         [Required]
-        [MaxLength(11)]
-        [MinLength(11)]
+        [StringLength(11, MinimumLength = 11)] 
         public string PersonalNumber { get; set; }
 
-        public ICollection<Hotel> ManagedHotels { get; set; }
-        public ICollection<Reservation> Reservations { get; set; }
+        public Guid? HotelId { get; set; }
+        public Hotel? Hotel { get; set; }
+
+        public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
     }
 }

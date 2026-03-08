@@ -19,10 +19,17 @@ namespace HMS.Application.Services
 
         public async Task<IdentityResult> RegisterManager(RegistrationRequestDto dto)
         {
-            var exists = await _userManager.Users.AnyAsync(u => u.PersonalNumber == dto.PersonalNumber);
+            if (string.IsNullOrEmpty(dto.PersonalNumber) || dto.PersonalNumber.Length != 11)
+            {
+                return IdentityResult.Failed(new IdentityError { Description = "Personal Number must be 11 characters long" });
+            }
+
+            var exists = await _userManager.Users.AnyAsync(u =>
+                u.PersonalNumber == dto.PersonalNumber || u.Email == dto.Email);
+
             if (exists)
             {
-                return IdentityResult.Failed(new IdentityError { Description = "Personal Number already registered." });
+                return IdentityResult.Failed(new IdentityError { Description = "Personal Number or Email already registered" });
             }
 
             var user = new ApplicationUser
@@ -44,12 +51,19 @@ namespace HMS.Application.Services
 
         public async Task<IdentityResult> RegisterGuest(RegistrationRequestDto dto)
         {
+            if (string.IsNullOrEmpty(dto.PersonalNumber) || dto.PersonalNumber.Length != 11)
+            {
+                return IdentityResult.Failed(new IdentityError { Description = "Personal Number must be 11 characters long" });
+            }
+
             var exists = await _userManager.Users.AnyAsync(u =>
-                u.PersonalNumber == dto.PersonalNumber || u.PhoneNumber == dto.PhoneNumber);
+                u.PersonalNumber == dto.PersonalNumber ||
+                u.PhoneNumber == dto.PhoneNumber ||
+                u.Email == dto.Email);
 
             if (exists)
             {
-                return IdentityResult.Failed(new IdentityError { Description = "ID or Phone Number already registered." });
+                return IdentityResult.Failed(new IdentityError { Description = "ID, Email, or Phone Number already registered" });
             }
 
             var user = new ApplicationUser
@@ -59,13 +73,13 @@ namespace HMS.Application.Services
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
                 PersonalNumber = dto.PersonalNumber,
-                PhoneNumber = dto.PhoneNumber 
+                PhoneNumber = dto.PhoneNumber
             };
 
             var result = await _userManager.CreateAsync(user, dto.Password);
             if (result.Succeeded)
             {
-                await _userManager.AddToRoleAsync(user, "Guest"); 
+                await _userManager.AddToRoleAsync(user, "Guest");
             }
             return result;
         }

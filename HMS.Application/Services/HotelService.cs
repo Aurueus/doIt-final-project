@@ -15,20 +15,18 @@ namespace HMS.Application.Services
 
         public async Task<IEnumerable<Hotel>> GetFilteredHotelsAsync(string? country, string? city, int? rating)
         {
-            var hotels = await _hotelRepo.GetAllAsync();
-            
-            var query = hotels.AsQueryable();
+            var query = _hotelRepo.Query();
 
             if (!string.IsNullOrEmpty(country))
-                query = query.Where(h => h.Country.Contains(country, StringComparison.OrdinalIgnoreCase));
-            
+                query = query.Where(h => h.Country.ToLower() == country.ToLower());
+
             if (!string.IsNullOrEmpty(city))
-                query = query.Where(h => h.City.Contains(city, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(h => h.City.ToLower() == city.ToLower());
 
             if (rating.HasValue)
                 query = query.Where(h => h.Rating == rating.Value);
 
-            return query.ToList();
+            return await query.ToListAsync();
         }
 
         public async Task<Hotel?> GetHotelByIdAsync(Guid id)
@@ -47,9 +45,15 @@ namespace HMS.Application.Services
             var existing = await _hotelRepo.GetByIdAsync(id);
             if (existing != null)
             {
+                if (hotel.Rating < 1 || hotel.Rating > 5)
+                    throw new ArgumentException("Rating must be between 1 and 5");
+
                 existing.Name = hotel.Name;
                 existing.Address = hotel.Address;
                 existing.Rating = hotel.Rating;
+                existing.Country = hotel.Country;
+                existing.City = hotel.City;
+
                 _hotelRepo.Update(existing);
                 await _hotelRepo.SaveAsync();
             }
@@ -57,11 +61,18 @@ namespace HMS.Application.Services
 
         public async Task<bool> DeleteHotelAsync(Guid id)
         {
-            var hotel = await _hotelRepo.GetByIdAsync(id);
+            var hotel = await _hotelRepo.Query()
+                .Include(h => h.Rooms!)
+                    .ThenInclude(r => r.ReservationRooms!)
+                .FirstOrDefaultAsync(h => h.Id == id);
+
             if (hotel == null) return false;
 
             if (hotel.Rooms != null && hotel.Rooms.Any())
-                return false; 
+                return false;
+
+            var hasReservations = hotel.Rooms?.Any(r => r.ReservationRooms != null && r.ReservationRooms.Any()) ?? false;
+            if (hasReservations) return false;
 
             _hotelRepo.Delete(hotel);
             await _hotelRepo.SaveAsync();

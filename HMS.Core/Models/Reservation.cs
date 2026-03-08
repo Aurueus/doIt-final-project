@@ -1,13 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations;
-using HMS.Core.Models;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace HMS.Core.Models
-
 {
     public class Reservation
     {
@@ -21,10 +18,14 @@ namespace HMS.Core.Models
         [Required]
         public DateTime CheckoutDate { get; set; }
 
-        [ForeignKey(nameof(Guest))]
-        public string GuestId { get; set; }
-        public ApplicationUser Guest { get; set; }
+        [Required]
+        public string GuestId { get; set; } = string.Empty;
 
-        public ICollection<ReservationRoom> ReservationRooms { get; set; }
+        [ForeignKey(nameof(GuestId))]
+        [JsonIgnore] 
+        public virtual ApplicationUser? Guest { get; set; }
+
+        [JsonIgnore]
+        public virtual ICollection<ReservationRoom>? ReservationRooms { get; set; } = new List<ReservationRoom>();
     }
 }

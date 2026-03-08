@@ -1,13 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using HMS.Core.Models;
+using System.Text.Json.Serialization; 
 
 namespace HMS.Core.Models
-
 {
     public class Room
     {
@@ -17,15 +14,18 @@ namespace HMS.Core.Models
 
         [Required]
         [MaxLength(50)]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty; 
 
         [Required]
         public double Price { get; set; }
 
-        [ForeignKey(nameof(Hotel))]
+        [Required] 
         public Guid HotelId { get; set; }
-        public Hotel Hotel { get; set; }
 
-        public ICollection<ReservationRoom> ReservationRooms { get; set; }
+        [JsonIgnore]
+        public virtual Hotel? Hotel { get; set; }
+
+        [JsonIgnore]
+        public virtual ICollection<ReservationRoom>? ReservationRooms { get; set; } = new List<ReservationRoom>();
     }
 }

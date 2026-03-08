@@ -7,10 +7,11 @@ using HMS.Infrastructure.Repositories;
 using HMS.Application.Services;
 using Scalar.AspNetCore;
 using HMS.Infrastructure.DbInitializer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace HMS.API
-{
-    namespace HMS.API
 {
     public class Program
     {
@@ -38,10 +39,33 @@ namespace HMS.API
 
             builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
             builder.Services.AddScoped<IAuthService, AuthService>();
-
+            builder.Services.AddScoped<IReservationService, ReservationService>();
             builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
             builder.Services.AddScoped<IHotelService, HotelService>();
             builder.Services.AddScoped<IRoomService, RoomService>();
+            builder.Services.AddScoped<IManagerService, ManagerService>();
+            builder.Services.AddScoped<IReservationService, ReservationService>();
+            builder.Services.AddScoped<IGuestService, GuestService>();
+            
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = builder.Configuration["JwtOptions:Issuer"],
+                    ValidAudience = builder.Configuration["JwtOptions:Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(builder.Configuration["JwtOptions:Secret"]!)) 
+                };
+            });
 
             var app = builder.Build();
 
@@ -57,9 +81,8 @@ namespace HMS.API
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
-            
+
             await app.RunAsync();
         }
     }
-}
 }

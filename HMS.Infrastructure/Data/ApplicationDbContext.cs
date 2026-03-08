@@ -21,10 +21,10 @@ namespace HMS.Infrastructure.Data
         {
             base.OnModelCreating(builder);
 
-            builder.Entity<Hotel>()
-                .HasOne(h => h.Manager)
-                .WithMany(u => u.ManagedHotels)
-                .HasForeignKey(h => h.ManagerId)
+            builder.Entity<ApplicationUser>()
+                .HasOne(u => u.Hotel)
+                .WithMany(h => h.Managers)
+                .HasForeignKey(u => u.HotelId)
                 .OnDelete(DeleteBehavior.Restrict);
 
 
@@ -55,6 +55,9 @@ namespace HMS.Infrastructure.Data
                 .HasForeignKey(rr => rr.RoomId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            builder.Entity<ApplicationUser>()
+                .HasIndex(u => u.PersonalNumber)
+                .IsUnique();
 
             builder.Entity<ApplicationUser>(entity => entity.ToTable(name: "Users"));
             builder.Entity<IdentityRole>(entity => entity.ToTable(name: "Roles"));

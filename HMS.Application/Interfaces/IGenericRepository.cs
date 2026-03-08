@@ -13,5 +13,6 @@ namespace HMS.Application.Interfaces
         void Update(T entity);
         void Delete(T entity);
         Task SaveAsync();
+        IQueryable<T> Query();
     }
 }
