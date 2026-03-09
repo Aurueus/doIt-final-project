@@ -1,23 +1,27 @@
+using AutoMapper;
+using HMS.Application.Common;
+using HMS.Application.DTO.Auth;
 using HMS.Application.Interfaces;
 using HMS.Core.Models;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace HMS.Api.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/hotels/{hotelId}/rooms")]
     [ApiController]
     public class RoomsController : ControllerBase
     {
         private readonly IRoomService _roomService;
+        private readonly IMapper _mapper;
 
-        public RoomsController(IRoomService roomService)
+        public RoomsController(IRoomService roomService, IMapper mapper)
         {
             _roomService = roomService;
+            _mapper = mapper;
         }
 
-
-        [HttpGet("/api/hotels/{hotelId}/rooms")]
+        [HttpGet]
         public async Task<IActionResult> GetRoomsByHotel(
             Guid hotelId,
             [FromQuery] decimal? minPrice,
@@ -25,49 +29,51 @@ namespace HMS.Api.Controllers
             [FromQuery] DateTime? availabilityDate)
         {
             var rooms = await _roomService.GetRoomsByHotelIdAsync(hotelId, minPrice, maxPrice, availabilityDate);
-            return Ok(rooms);
+            var dtos = _mapper.Map<IEnumerable<RoomResponseDto>>(rooms);
+            return Ok(ApiResponse<IEnumerable<RoomResponseDto>>.Ok(dtos));
         }
 
-        [HttpPost("/api/hotels/{hotelId}/rooms")]
+        [HttpGet("{roomId}")]
+        public async Task<IActionResult> GetById(Guid hotelId, Guid roomId)
+        {
+            var room = await _roomService.GetRoomByIdAsync(roomId);
+            if (room == null || room.HotelId != hotelId)
+                return NotFound(ApiResponse<RoomResponseDto>.Fail("Room not found in this hotel"));
+
+            var dto = _mapper.Map<RoomResponseDto>(room);
+            return Ok(ApiResponse<RoomResponseDto>.Ok(dto));
+        }
+
+        [HttpPost]
         [Authorize(Roles = "Admin,Manager")]
-        public async Task<IActionResult> AddRoom(Guid hotelId, [FromBody] Room room)
+        public async Task<IActionResult> AddRoom(Guid hotelId, [FromBody] RoomCreateDto dto)
         {
-            try
-            {
-                await _roomService.AddRoomToHotelAsync(hotelId, room);
-                return CreatedAtAction(nameof(GetById), new { id = room.Id }, room);
-            }
-            catch (ArgumentException ex) { return BadRequest(new { Message = ex.Message }); }
+            var room = _mapper.Map<Room>(dto);
+            await _roomService.AddRoomToHotelAsync(hotelId, room);
+            var response = _mapper.Map<RoomResponseDto>(room);
+            return CreatedAtAction(nameof(GetById), new { hotelId, roomId = room.Id },
+                ApiResponse<RoomResponseDto>.Ok(response, "Room added successfully"));
         }
 
-
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(Guid id)
-        {
-            var room = await _roomService.GetRoomByIdAsync(id);
-            if (room == null) return NotFound();
-            return Ok(room);
-        }
-
-        [HttpPut("{id}")]
+        [HttpPut("{roomId}")]
         [Authorize(Roles = "Admin,Manager")]
-        public async Task<IActionResult> Update(Guid id, [FromBody] Room room)
+        public async Task<IActionResult> Update(Guid hotelId, Guid roomId, [FromBody] RoomUpdateDto dto)
         {
-            if (id != room.Id) return BadRequest("ID mismatch");
-            try
-            {
-                await _roomService.UpdateRoomAsync(room);
-                return NoContent();
-            }
-            catch (ArgumentException ex) { return BadRequest(new { Message = ex.Message }); }
+            var room = _mapper.Map<Room>(dto);
+            room.Id = roomId;
+            room.HotelId = hotelId;
+            await _roomService.UpdateRoomAsync(room);
+            return NoContent();
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete("{roomId}")]
         [Authorize(Roles = "Admin,Manager")]
-        public async Task<IActionResult> Delete(Guid id)
+        public async Task<IActionResult> Delete(Guid hotelId, Guid roomId)
         {
-            var success = await _roomService.DeleteRoomAsync(id);
-            if (!success) return BadRequest(new { Message = "Cannot delete room: Active or future reservations exist" });
+            var success = await _roomService.DeleteRoomAsync(roomId);
+            if (!success)
+                return BadRequest(ApiResponse<object>.Fail("Cannot delete room: it has active or future reservations"));
+
             return NoContent();
         }
     }

@@ -1,94 +1,85 @@
-using Microsoft.AspNetCore.Mvc;
-using HMS.Application.Interfaces;
-using HMS.Core.Models;
+using AutoMapper;
+using HMS.Application.Common;
 using HMS.Application.DTO.Auth;
+using HMS.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
-namespace HMS.API.Controllers
+namespace HMS.Api.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Authorize]
     public class ReservationsController : ControllerBase
     {
         private readonly IReservationService _reservationService;
+        private readonly IMapper _mapper;
 
-        public ReservationsController(IReservationService reservationService)
+        public ReservationsController(IReservationService reservationService, IMapper mapper)
         {
             _reservationService = reservationService;
+            _mapper = mapper;
         }
 
+        [HttpPost("api/hotels/{hotelId}/reservations")]
         [Authorize(Roles = "Guest")]
-        [HttpPost]
-        public async Task<IActionResult> Create([FromBody] ReservationRequest request)
+        public async Task<IActionResult> Create(Guid hotelId, [FromBody] ReservationCreateDto dto)
         {
-            try
-            {
-                var result = await _reservationService.CreateBookingAsync(request);
-                return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred", details = ex.Message });
-            }
+            var callerId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            var reservation = await _reservationService.CreateBookingAsync(dto, callerId, hotelId);
+            var response = _mapper.Map<ReservationResponseDto>(reservation);
+            return CreatedAtAction(nameof(GetById), new { id = reservation.Id },
+                ApiResponse<ReservationResponseDto>.Ok(response, "Reservation created successfully."));
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("api/reservations/{id}")]
         public async Task<IActionResult> GetById(Guid id)
         {
             var reservation = await _reservationService.GetByIdAsync(id);
-            if (reservation == null) return NotFound();
-            return Ok(reservation);
+            if (reservation == null)
+                return NotFound(ApiResponse<ReservationResponseDto>.Fail("Reservation not found."));
+
+            var dto = _mapper.Map<ReservationResponseDto>(reservation);
+            return Ok(ApiResponse<ReservationResponseDto>.Ok(dto));
         }
 
-        [HttpGet("user/{userId}")]
-        public async Task<IActionResult> GetByUserId(string userId)
+        [HttpGet("api/reservations")]
+        public async Task<IActionResult> Search(
+            [FromQuery] string? guestId,
+            [FromQuery] Guid? hotelId,
+            [FromQuery] Guid? roomId,
+            [FromQuery] DateTime? date,
+            [FromQuery] bool? activeOnly)
         {
-            var reservations = await _reservationService.GetUserReservationsAsync(userId);
-            return Ok(reservations);
+            var reservations = await _reservationService.SearchAsync(guestId, hotelId, roomId, date, activeOnly);
+            var dtos = _mapper.Map<IEnumerable<ReservationResponseDto>>(reservations);
+            return Ok(ApiResponse<IEnumerable<ReservationResponseDto>>.Ok(dtos));
         }
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(Guid id)
-        {
-            var deleted = await _reservationService.DeleteReservationAsync(id);
-            if (!deleted) return NotFound();
-            return NoContent();
-        }
-
-        [HttpPut("{id}/dates")]
+        [HttpPut("api/reservations/{id}/dates")]
         [Authorize(Roles = "Guest,Admin")]
         public async Task<IActionResult> UpdateDates(Guid id, [FromBody] UpdateDatesRequest request)
         {
-            try
-            {
-                var updated = await _reservationService.UpdateReservationDatesAsync(
-                    id,
-                    request.NewCheckIn,
-                    request.NewCheckOut
-                );
+            var callerId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            var isAdmin = User.IsInRole("Admin");
 
-                return Ok(updated);
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new { message = ex.Message });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var updated = await _reservationService.UpdateReservationDatesAsync(
+                id, request.NewCheckIn, request.NewCheckOut, callerId, isAdmin);
+            var dto = _mapper.Map<ReservationResponseDto>(updated);
+            return Ok(ApiResponse<ReservationResponseDto>.Ok(dto, "Dates updated successfully."));
+        }
+
+        [HttpDelete("api/reservations/{id}")]
+        public async Task<IActionResult> Delete(Guid id)
+        {
+            var callerId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            var isAdmin = User.IsInRole("Admin");
+
+            var success = await _reservationService.DeleteReservationAsync(id, callerId, isAdmin);
+            if (!success)
+                return NotFound(ApiResponse<object>.Fail("Reservation not found."));
+
+            return NoContent();
         }
     }
 }

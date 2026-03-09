@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using HMS.Application.DTO.Auth;
 using HMS.Application.Interfaces;
 using HMS.Core.Models;
 using Microsoft.AspNetCore.Identity;
@@ -18,6 +15,13 @@ namespace HMS.Application.Services
             _userManager = userManager;
         }
 
+        public async Task<IEnumerable<ApplicationUser>> GetManagersByHotelIdAsync(Guid hotelId)
+        {
+            return await _userManager.Users
+                .Where(u => u.HotelId == hotelId)
+                .ToListAsync();
+        }
+
         public async Task<bool> AssignManagerToHotelAsync(string managerId, Guid hotelId)
         {
             var manager = await _userManager.FindByIdAsync(managerId);
@@ -28,11 +32,17 @@ namespace HMS.Application.Services
             return result.Succeeded;
         }
 
-        public async Task<IEnumerable<ApplicationUser>> GetManagersByHotelIdAsync(Guid hotelId)
+        public async Task<bool> UpdateManagerAsync(string managerId, ManagerUpdateDto dto)
         {
-            return await _userManager.Users
-                .Where(u => u.HotelId == hotelId)
-                .ToListAsync();
+            var existing = await _userManager.FindByIdAsync(managerId);
+            if (existing == null) return false;
+
+            existing.FirstName = dto.FirstName;
+            existing.LastName = dto.LastName;
+            existing.PhoneNumber = dto.PhoneNumber;
+
+            var result = await _userManager.UpdateAsync(existing);
+            return result.Succeeded;
         }
 
         public async Task<bool> DeleteManagerAsync(string managerId)
@@ -43,22 +53,10 @@ namespace HMS.Application.Services
             var otherManagersCount = await _userManager.Users
                 .CountAsync(u => u.HotelId == manager.HotelId && u.Id != managerId);
 
-            if (otherManagersCount == 0) return false;
+            if (otherManagersCount == 0)
+                throw new InvalidOperationException("Cannot delete: this is the last manager of the hotel.");
 
             var result = await _userManager.DeleteAsync(manager);
-            return result.Succeeded;
-        }
-
-        public async Task<bool> UpdateManagerAsync(ApplicationUser manager)
-        {
-            var existing = await _userManager.FindByIdAsync(manager.Id);
-            if (existing == null) return false;
-
-            existing.FirstName = manager.FirstName;
-            existing.LastName = manager.LastName;
-            existing.PhoneNumber = manager.PhoneNumber;
-            
-            var result = await _userManager.UpdateAsync(existing);
             return result.Succeeded;
         }
     }

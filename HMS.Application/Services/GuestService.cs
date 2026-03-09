@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using HMS.Application.DTO.Auth;
 using HMS.Application.Interfaces;
 using HMS.Core.Models;
 using Microsoft.AspNetCore.Identity;
@@ -23,18 +20,19 @@ namespace HMS.Application.Services
             return await _userManager.FindByIdAsync(guestId);
         }
 
-        public async Task<bool> UpdateGuestAsync(string guestId, ApplicationUser updatedGuest)
+        public async Task<bool> UpdateGuestAsync(string guestId, GuestUpdateDto dto)
         {
             var existing = await _userManager.FindByIdAsync(guestId);
             if (existing == null) return false;
 
             var phoneExists = await _userManager.Users
-                .AnyAsync(u => u.PhoneNumber == updatedGuest.PhoneNumber && u.Id != guestId);
-            if (phoneExists) throw new ArgumentException("Phone number is already in use");
+                .AnyAsync(u => u.PhoneNumber == dto.PhoneNumber && u.Id != guestId);
+            if (phoneExists)
+                throw new ArgumentException("Phone number is already in use.");
 
-            existing.FirstName = updatedGuest.FirstName;
-            existing.LastName = updatedGuest.LastName;
-            existing.PhoneNumber = updatedGuest.PhoneNumber;
+            existing.FirstName = dto.FirstName;
+            existing.LastName = dto.LastName;
+            existing.PhoneNumber = dto.PhoneNumber;
 
             var result = await _userManager.UpdateAsync(existing);
             return result.Succeeded;
@@ -51,7 +49,8 @@ namespace HMS.Application.Services
             var hasFutureBookings = guest.Reservations?
                 .Any(r => r.CheckoutDate >= DateTime.Today) ?? false;
 
-            if (hasFutureBookings) return false;
+            if (hasFutureBookings)
+                throw new InvalidOperationException("Cannot delete guest: they have active or future reservations.");
 
             var result = await _userManager.DeleteAsync(guest);
             return result.Succeeded;

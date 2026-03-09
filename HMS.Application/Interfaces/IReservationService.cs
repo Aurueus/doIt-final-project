@@ -9,10 +9,10 @@ namespace HMS.Application.Interfaces
 {
     public interface IReservationService
     {
-        Task<Reservation> CreateBookingAsync(ReservationRequest request);
-        Task<IEnumerable<Reservation>> GetUserReservationsAsync(string userId);
+        Task<Reservation> CreateBookingAsync(ReservationCreateDto dto, string callerId, Guid hotelId);
         Task<Reservation?> GetByIdAsync(Guid id);
-        Task<bool> DeleteReservationAsync(Guid id);
-        Task<Reservation> UpdateReservationDatesAsync(Guid reservationId, DateTime newCheckIn, DateTime newCheckOut);
+        Task<IEnumerable<Reservation>> SearchAsync(string? guestId, Guid? hotelId, Guid? roomId, DateTime? date, bool? activeOnly);
+        Task<Reservation> UpdateReservationDatesAsync(Guid reservationId, DateTime newCheckIn, DateTime newCheckOut, string callerId, bool isAdmin);
+        Task<bool> DeleteReservationAsync(Guid id, string callerId, bool isAdmin);
     }
 }
