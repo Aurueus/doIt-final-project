@@ -1,45 +1,52 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using AutoMapper;
+using HMS.Application.Common;
+using HMS.Application.DTO.Auth;
 using HMS.Application.Interfaces;
-using HMS.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace HMS.Api.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/guests")]
     [ApiController]
+    [Authorize]
     public class GuestsController : ControllerBase
     {
         private readonly IGuestService _guestService;
+        private readonly IMapper _mapper;
 
-        public GuestsController(IGuestService guestService)
+        public GuestsController(IGuestService guestService, IMapper mapper)
         {
             _guestService = guestService;
+            _mapper = mapper;
         }
 
         [HttpGet("{id}")]
-        [Authorize]
         public async Task<IActionResult> GetProfile(string id)
         {
             var guest = await _guestService.GetGuestByIdAsync(id);
-            if (guest == null) return NotFound();
-            return Ok(guest);
+            if (guest == null)
+                return NotFound(ApiResponse<GuestResponseDto>.Fail("Guest not found."));
+
+            var dto = _mapper.Map<GuestResponseDto>(guest);
+            return Ok(ApiResponse<GuestResponseDto>.Ok(dto));
         }
 
         [HttpPut("{id}")]
-        [Authorize]
-        public async Task<IActionResult> Update(string id, [FromBody] ApplicationUser guest)
+        public async Task<IActionResult> Update(string id, [FromBody] GuestUpdateDto dto)
         {
-            try
-            {
-                var success = await _guestService.UpdateGuestAsync(id, guest);
-                if (!success) return NotFound();
-                return NoContent();
-            }
-            catch (ArgumentException ex) { return BadRequest(new { Message = ex.Message }); }
+            var callerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+
+            if (!isAdmin && callerId != id)
+                return Forbid();
+
+            var success = await _guestService.UpdateGuestAsync(id, dto);
+            if (!success)
+                return NotFound(ApiResponse<object>.Fail("Guest not found."));
+
+            return NoContent();
         }
 
         [HttpDelete("{id}")]
@@ -47,9 +54,9 @@ namespace HMS.Api.Controllers
         public async Task<IActionResult> Delete(string id)
         {
             var success = await _guestService.DeleteGuestAsync(id);
-            if (!success) 
-                return BadRequest(new { Message = "Cannot delete guest: Active or future reservations exist" });
-            
+            if (!success)
+                return BadRequest(ApiResponse<object>.Fail("Cannot delete guest: they have active or future reservations."));
+
             return NoContent();
         }
     }

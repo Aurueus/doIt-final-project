@@ -10,6 +10,8 @@ using HMS.Infrastructure.DbInitializer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using HMS.Api.Middleware;
+using HMS.Application.Mappings;
 
 namespace HMS.API
 {
@@ -39,14 +41,14 @@ namespace HMS.API
 
             builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
             builder.Services.AddScoped<IAuthService, AuthService>();
-            builder.Services.AddScoped<IReservationService, ReservationService>();
             builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
             builder.Services.AddScoped<IHotelService, HotelService>();
             builder.Services.AddScoped<IRoomService, RoomService>();
             builder.Services.AddScoped<IManagerService, ManagerService>();
             builder.Services.AddScoped<IReservationService, ReservationService>();
             builder.Services.AddScoped<IGuestService, GuestService>();
-            
+            builder.Services.AddAutoMapper(typeof(MappingProfile));
+
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -63,7 +65,7 @@ namespace HMS.API
                     ValidIssuer = builder.Configuration["JwtOptions:Issuer"],
                     ValidAudience = builder.Configuration["JwtOptions:Audience"],
                     IssuerSigningKey = new SymmetricSecurityKey(
-                    Encoding.UTF8.GetBytes(builder.Configuration["JwtOptions:Secret"]!)) 
+                    Encoding.UTF8.GetBytes(builder.Configuration["JwtOptions:Secret"]!))
                 };
             });
 
@@ -78,6 +80,7 @@ namespace HMS.API
             }
 
             app.UseHttpsRedirection();
+            app.UseMiddleware<ExceptionHandlingMiddleware>();
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
